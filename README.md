@@ -72,6 +72,32 @@ With prefix `fw`, the server exposes:
 - `fw_spooler_list` / `fw_spooler_query` / `fw_spooler_aggregate` /
   `fw_spooler_distinct`: present in spindl mode only
 
+## For presenters: live token meter
+
+The repo includes a transparent stdio proxy that counts an estimate of the
+tokens every MCP message contributes to the model's context, without
+touching the traffic. Point your client at the meter instead of the server:
+
+```json
+"args": [
+  "--from", "git+https://github.com/Cognisn/spindl-workshop",
+  "spindl-workshop-meter", "--mode", "naive"
+]
+```
+
+Then, in a terminal beside your client (or on the projector):
+
+```bash
+uvx --from git+https://github.com/Cognisn/spindl-workshop spindl-workshop-meter watch
+```
+
+The watch display shows a running total and the most recent tool-call
+responses, and resets each time the server restarts. Counts use the same
+chars/4 estimate quoted in the exercises; expect the naive rulebase call to
+meter at roughly 150k tokens (content plus JSON-RPC envelope) against under
+a thousand in spindl mode. Set `SPINDL_METER_LOG` to relocate the meter log
+(default `~/.spindl-workshop/meter.jsonl`).
+
 ## Licence
 
 MIT. Fabricated data, no real systems were harmed.

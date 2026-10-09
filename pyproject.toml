@@ -1,6 +1,6 @@
 [project]
 name = "spindl-workshop"
-version = "0.1.0"
+version = "0.2.0"
 description = "CyberCon2026 workshop: MCP response spooling with spindl, demonstrated against a simulated firewall"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -12,6 +12,7 @@ dependencies = [
 
 [project.scripts]
 spindl-workshop = "spindl_workshop.server:main"
+spindl-workshop-meter = "spindl_workshop.token_meter:main"
 
 [build-system]
 requires = ["hatchling"]
