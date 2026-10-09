@@ -40,10 +40,37 @@ DEFAULT_LOG = Path(
 )
 
 CHARS_PER_TOKEN = 4
+MAX_ARGS_LOGGED = 400
 
 
 def _estimate_tokens(raw: bytes) -> int:
     return max(1, len(raw) // CHARS_PER_TOKEN)
+
+
+def _format_args(arguments: object) -> str:
+    """Compact, projector-friendly rendering of a tool call's arguments."""
+    if not isinstance(arguments, dict) or not arguments:
+        return ""
+    parts = []
+    for key, value in arguments.items():
+        if key == "spool_id":
+            continue  # opaque handle; noise on a projector
+        if key == "filters" and isinstance(value, list):
+            try:
+                parts.append(
+                    "filters: "
+                    + "; ".join(
+                        f"{f['column']} {f['operator']} {f['value']}" for f in value
+                    )
+                )
+                continue
+            except (KeyError, TypeError):
+                pass
+        if isinstance(value, str):
+            parts.append(f"{key}={value}")
+        else:
+            parts.append(f"{key}={json.dumps(value, separators=(',', ':'))}")
+    return "  ".join(parts)[:MAX_ARGS_LOGGED]
 
 
 class MeterLog:
@@ -80,8 +107,8 @@ def run_proxy(server_args: list[str], log_path: Path) -> int:
     )
     assert proc.stdin is not None and proc.stdout is not None
 
-    # request id -> tool/method name, so responses can be attributed
-    pending: dict[object, str] = {}
+    # request id -> (label, args summary), so responses can be attributed
+    pending: dict[object, tuple[str, str]] = {}
     pending_lock = threading.Lock()
 
     def client_to_server() -> None:
@@ -99,18 +126,22 @@ def run_proxy(server_args: list[str], log_path: Path) -> int:
                 msg = json.loads(line)
                 method = msg.get("method", "")
                 label = method
+                args = ""
                 if method == "tools/call":
-                    label = msg.get("params", {}).get("name", "tools/call")
+                    params = msg.get("params", {})
+                    label = params.get("name", "tools/call")
+                    args = _format_args(params.get("arguments"))
                 if "id" in msg and method:
                     with pending_lock:
-                        pending[msg["id"]] = label
-                log.emit(
-                    {
-                        "dir": "in",
-                        "tokens": _estimate_tokens(line),
-                        "label": label or "notification",
-                    }
-                )
+                        pending[msg["id"]] = (label, args)
+                record = {
+                    "dir": "in",
+                    "tokens": _estimate_tokens(line),
+                    "label": label or "notification",
+                }
+                if args:
+                    record["args"] = args
+                log.emit(record)
             except (json.JSONDecodeError, AttributeError):
                 log.emit({"dir": "in", "tokens": _estimate_tokens(line), "label": "?"})
 
@@ -122,16 +153,20 @@ def run_proxy(server_args: list[str], log_path: Path) -> int:
             sys.stdout.buffer.write(line)
             sys.stdout.buffer.flush()
             label = "?"
+            args = ""
             try:
                 msg = json.loads(line)
                 if "id" in msg and "method" not in msg:
                     with pending_lock:
-                        label = pending.pop(msg["id"], "response")
+                        label, args = pending.pop(msg["id"], ("response", ""))
                 else:
                     label = msg.get("method", "notification")
             except (json.JSONDecodeError, AttributeError):
                 pass
-            log.emit({"dir": "out", "tokens": _estimate_tokens(line), "label": label})
+            record = {"dir": "out", "tokens": _estimate_tokens(line), "label": label}
+            if args:
+                record["args"] = args
+            log.emit(record)
 
     t_in = threading.Thread(target=client_to_server, daemon=True)
     t_out = threading.Thread(target=server_to_client, daemon=True)
@@ -147,12 +182,14 @@ def run_proxy(server_args: list[str], log_path: Path) -> int:
 
 # --------------------------------------------------------------- watcher ---
 
-def _load_session(log_path: Path) -> tuple[str, int, int, list[tuple[str, int]]]:
+def _load_session(
+    log_path: Path,
+) -> tuple[str, int, int, list[tuple[str, int, str]]]:
     """Aggregate records since the most recent 'start' marker."""
     mode = "?"
     total_out = 0
     total_in = 0
-    calls: list[tuple[str, int]] = []
+    calls: list[tuple[str, int, str]] = []
     if not log_path.exists():
         return mode, total_out, total_in, calls
     session: list[dict] = []
@@ -171,7 +208,9 @@ def _load_session(log_path: Path) -> tuple[str, int, int, list[tuple[str, int]]]
             mode = rec.get("mode", "?")
         elif rec.get("dir") == "out":
             total_out += rec.get("tokens", 0)
-            calls.append((rec.get("label", "?"), rec.get("tokens", 0)))
+            calls.append(
+                (rec.get("label", "?"), rec.get("tokens", 0), rec.get("args", ""))
+            )
         elif rec.get("dir") == "in":
             total_in += rec.get("tokens", 0)
     return mode, total_out, total_in, calls
@@ -190,8 +229,11 @@ def run_watch(log_path: Path, once: bool = False) -> int:
             print(f"  tokens sent by client (est.):      {total_in:>10,}")
             print()
             print("  recent server responses:")
-            for label, tokens in calls[-10:]:
+            for label, tokens, args in calls[-8:]:
                 print(f"    {label:<28} {tokens:>10,}")
+                if args:
+                    shown = args if len(args) <= 92 else args[:89] + "..."
+                    print(f"      \x1b[2m{shown}\x1b[0m")
             if not calls:
                 print("    (waiting for traffic)")
             sys.stdout.flush()
