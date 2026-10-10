@@ -3,7 +3,10 @@
 Server mode: `--mode naive`. Confirm your client shows tools prefixed `fw_`
 and that `fw_spooler_*` tools are **absent**.
 
-Before each task, note your client's context/token usage indicator.
+Before each task, note your client's context/token usage indicator. If
+your client has none, run the bundled token meter instead: swap
+`spindl-workshop` for `spindl-workshop-meter` in your config, then in a
+terminal run the `spindl-workshop-meter watch` command from the README.
 
 ## Task 0: Connectivity check
 
