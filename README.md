@@ -21,9 +21,9 @@ identical data.
 - [uv](https://docs.astral.sh/uv/) installed (`uv --version` to confirm).
   uv will fetch a suitable Python (3.10+) automatically if needed.
 - An MCP client that supports local stdio servers. Tested with
-  **Claude Desktop** and **VS Code (Copilot agent mode)**. See
-  `clients/` for configuration snippets, including notes for ChatGPT/Codex
-  users.
+  **Claude Desktop**, **VS Code (Copilot agent mode)**, and the
+  **ChatGPT desktop app**. See `clients/` for configuration snippets
+  (ChatGPT on the web cannot run local stdio servers; the desktop app can).
 - You should be comfortable editing your client's MCP configuration file.
 
 ## Smoke test (do this before the workshop)

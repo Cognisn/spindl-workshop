@@ -1,23 +1,37 @@
-# ChatGPT / Codex users (untested-live appendix)
+# ChatGPT desktop app (and Codex CLI)
 
-The ChatGPT chat product does not run local stdio MCP servers; it accepts
-remote HTTPS connectors only. Two workable paths, neither supported live in
-the room:
+The ChatGPT desktop app supports local stdio MCP servers. Configuration is
+shared with the Codex CLI and IDE extension via `~/.codex/config.toml`
+(docs: https://learn.chatgpt.com/docs/extend/mcp?surface=app).
 
-## Option A: Codex CLI (stdio supported)
+## Option A: Settings UI
 
-The Codex CLI and IDE extension can run local stdio MCP servers. Add via the
-Codex MCP configuration:
+Settings -> MCP servers -> Add server: name it `fw-workshop`, choose
+STDIO, and enter the command below. Save, then Restart.
+
+```
+uvx --from git+https://github.com/Cognisn/spindl-workshop spindl-workshop --mode naive
+```
+
+## Option B: config file
+
+Add to `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.fw-workshop]
 command = "uvx"
-args = ["--from", "git+https://github.com/Cognisn/spindl-workshop", "spindl-workshop", "--mode", "naive"]
+args = [
+  "--from", "git+https://github.com/Cognisn/spindl-workshop",
+  "spindl-workshop", "--mode", "naive",
+]
 ```
 
-## Option B: Bridge to a remote endpoint
+For Exercise 2, change `"naive"` to `"spindl"` and restart the server
+(Settings -> MCP servers -> Restart, or restart the app). The Codex CLI
+picks up the same configuration unchanged.
 
-Expose the server over HTTP with spindl's HTTP transport, or wrap the stdio
-server with a bridge such as `mcp-remote`, then add the resulting HTTPS URL
-as a custom connector in ChatGPT developer mode. This requires a host or
-tunnel you control and is left as an exercise.
+## ChatGPT on the web
+
+The web product accepts remote HTTPS MCP connectors only and cannot spawn
+local stdio servers. Use the desktop app for this workshop, or expose the
+server over HTTP (spindl `run_http`) and add it as a custom connector.
