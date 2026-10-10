@@ -1,4 +1,4 @@
-# Exercise 1: The Naive Server (15 to 25 min mark)
+# Exercise 1: The Naive Server (25 to 40 min mark)
 
 Server mode: `--mode naive`. Confirm your client shows tools prefixed `fw_`
 and that `fw_spooler_*` tools are **absent**.

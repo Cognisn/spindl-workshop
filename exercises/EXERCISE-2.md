@@ -1,4 +1,4 @@
-# Exercise 2: The Same Server, Spooled (25 to 35 min mark)
+# Exercise 2: The Same Server, Spooled (50 to 65 min mark)
 
 Change `naive` to `spindl` in your client config and restart the client.
 Confirm the `fw_spooler_*` tools now appear. Nothing else changed: same
