@@ -184,15 +184,20 @@ def run_proxy(server_args: list[str], log_path: Path) -> int:
 
 def _load_session(
     log_path: Path,
-) -> tuple[str, int, int, list[tuple[str, int, str]]]:
-    """Aggregate records since the most recent 'start' marker."""
+) -> tuple[str, int, int, list[tuple[str, int, str]], int]:
+    """Aggregate records for the current run.
+
+    A run continues across server restarts (clients routinely relaunch the
+    server for a new chat) and only starts afresh when the server mode
+    changes or the log is reset. Returns the number of server starts seen.
+    """
     mode = "?"
     total_out = 0
     total_in = 0
+    starts = 0
     calls: list[tuple[str, int, str]] = []
     if not log_path.exists():
-        return mode, total_out, total_in, calls
-    session: list[dict] = []
+        return mode, total_out, total_in, calls, starts
     with open(log_path, encoding="utf-8") as fh:
         for raw in fh:
             try:
@@ -200,30 +205,30 @@ def _load_session(
             except json.JSONDecodeError:
                 continue
             if rec.get("event") == "start":
-                session = [rec]
-            else:
-                session.append(rec)
-    for rec in session:
-        if rec.get("event") == "start":
-            mode = rec.get("mode", "?")
-        elif rec.get("dir") == "out":
-            total_out += rec.get("tokens", 0)
-            calls.append(
-                (rec.get("label", "?"), rec.get("tokens", 0), rec.get("args", ""))
-            )
-        elif rec.get("dir") == "in":
-            total_in += rec.get("tokens", 0)
-    return mode, total_out, total_in, calls
+                new_mode = rec.get("mode", "?")
+                if new_mode != mode:
+                    total_out = total_in = starts = 0
+                    calls = []
+                mode = new_mode
+                starts += 1
+            elif rec.get("dir") == "out":
+                total_out += rec.get("tokens", 0)
+                calls.append(
+                    (rec.get("label", "?"), rec.get("tokens", 0), rec.get("args", ""))
+                )
+            elif rec.get("dir") == "in":
+                total_in += rec.get("tokens", 0)
+    return mode, total_out, total_in, calls, starts
 
 
 def run_watch(log_path: Path, once: bool = False) -> int:
     try:
         while True:
-            mode, total_out, total_in, calls = _load_session(log_path)
+            mode, total_out, total_in, calls, starts = _load_session(log_path)
             if not once:
                 sys.stdout.write("\x1b[2J\x1b[H")  # clear screen, home
             print("SPINDL WORKSHOP TOKEN METER")
-            print(f"server mode: {mode}    log: {log_path}")
+            print(f"server mode: {mode}    server starts: {starts}    log: {log_path}")
             print()
             print(f"  tokens into model context (est.):  {total_out:>10,}")
             print(f"  tokens sent by client (est.):      {total_in:>10,}")
@@ -248,6 +253,14 @@ def run_watch(log_path: Path, once: bool = False) -> int:
 
 def main() -> None:
     argv = sys.argv[1:]
+    if argv and argv[0] == "reset":
+        parser = argparse.ArgumentParser(prog="spindl-workshop-meter reset")
+        parser.add_argument("--log", type=Path, default=DEFAULT_LOG)
+        args = parser.parse_args(argv[1:])
+        args.log.parent.mkdir(parents=True, exist_ok=True)
+        args.log.write_text("", encoding="utf-8")
+        print(f"meter log cleared: {args.log}")
+        raise SystemExit(0)
     if argv and argv[0] == "watch":
         parser = argparse.ArgumentParser(prog="spindl-workshop-meter watch")
         parser.add_argument("--log", type=Path, default=DEFAULT_LOG)

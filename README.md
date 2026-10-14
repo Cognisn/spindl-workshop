@@ -92,7 +92,10 @@ uvx --from git+https://github.com/Cognisn/spindl-workshop spindl-workshop-meter 
 ```
 
 The watch display shows a running total and the most recent tool-call
-responses, and resets each time the server restarts. Counts use the same
+responses. Totals carry on across server restarts (clients often relaunch
+the server when you open a new chat, shown as "server starts") and begin
+afresh when the mode changes. To zero the counts between rehearsals, run
+`spindl-workshop-meter reset`. Counts use the same
 chars/4 estimate quoted in the exercises; expect the naive rulebase call to
 meter at roughly 150k tokens (content plus JSON-RPC envelope) against under
 a thousand in spindl mode. Set `SPINDL_METER_LOG` to relocate the meter log
